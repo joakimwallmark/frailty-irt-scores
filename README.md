@@ -2,11 +2,17 @@
 
 This repo lets you compute **frailty scores** for new respondents using the bifactor IRT model from the corresponding article (published later). Scores can be computed from within R or from the command line with R installed.
 
-### Install required R packages
+### Installation
 
-```r
-install.packages("mirt")
-```
+- Clone/download this repository
+- A local R installation is required. If you don’t already have R installed, you can download it here:  
+👉 [https://cran.r-project.org/](https://cran.r-project.org/)
+- Optionally, you may also want RStudio Desktop if you plan to use R more in the future (a popular IDE for R):  
+👉 [https://posit.co/download/rstudio-desktop/](https://posit.co/download/rstudio-desktop/)
+- Install the `mirt` R package
+    ```r
+    install.packages("mirt")
+    ```
 
 ### Input data
 See `templates/input_template.csv` for an example CSV in the expected format.
@@ -35,7 +41,23 @@ Items, names, and coding (you must use these column names):
 
 ---
 
+## Command-line scoring
+
+Run from the terminal (bash) from the cloned repo directory:
+```bash
+Rscript R/score_frailty_cli.R templates/input_template.csv out.csv
+```
+All factors from the terminal:
+```bash
+Rscript R/score_frailty_cli.R templates/input_template.csv out.csv --all
+```
+
+This reads `input_template.csv` and writes scores to `out.csv`.
+
+---
+
 ## R scoring
+Open R or RStudio and set the working directory to the cloned repo (e.g., by opening the R project file `frailty-irt-model.Rproj` or by using the `setwd()` R function), then run:
 
 ```r
 # Load the scoring function
@@ -49,7 +71,7 @@ res <- score_frailty(df)
 head(res)
 ```
 
-Return **all factors** (general + specifics) with SEs:
+To return **all factors** (general + specifics) with SEs:
 
 ```r
 res_all <- score_frailty(df, return_all_factors = TRUE)
@@ -57,19 +79,6 @@ head(res_all)
 ```
 
 ---
-
-## Command-line scoring
-
-Run from the terminal (bash):
-```bash
-Rscript R/score_frailty_cli.R templates/input_template.csv out.csv
-```
-All scores from the terminal:
-```bash
-Rscript R/score_frailty_cli.R templates/input_template.csv out.csv --all
-```
-
-This reads `input_template.csv` and writes scores to `out.csv`.
 
 ## mirt package users
 
