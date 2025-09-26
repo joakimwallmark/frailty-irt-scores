@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Frailty Scoring (Offline, Auto-Lookup)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        body {
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, sans-serif;
+            margin: 24px;
+            line-height: 1.45;
+        }
+
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
+        }
+
+        h1 {
+            margin-bottom: 12px;
+        }
+
+        button {
+            padding: 10px 16px;
+            border-radius: 10px;
+            border: 1px solid #ccc;
+            cursor: pointer;
+        }
+
+        code {
+            background: #f6f8fa;
+            padding: 2px 4px;
+            border-radius: 6px;
+        }
+
+        .ok {
+            color: #0a7f2e;
+        }
+
+        .err {
+            color: #a30000;
+        }
+
+        .muted {
+            color: #555;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        }
+
+        input[type=file] {
+            margin: 6px 0 10px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Frailty Scoring (Offline)</h1>
+    <div class="card">
+        <h2>Load the lookup table</h2>
+        <p>Load the lookup CSV-file (<code>lookup.csv</code>).</p>
+        <div>
+            <input type="file" id="lookupFile" accept=".csv" />
+        </div>
+        <div id="lookupStatus" class="muted">No lookup loaded yet.</div>
+    </div>
+
+    <div class="card">
+        <h2>Load your responses</h2>
+        <p>The response CSV-file must include these columns (scores as integer codes; leave empty for missing):</p>
+        <p><code>return_to_life, mobility, toilet_help, dressing_help, dependent_support, depressed_anxious, general_health, increased_fatigue, new_pain</code>
+        </p>
+        <input type="file" id="respFile" accept=".csv" />
+        <div id="respStatus" class="muted"></div>
+        <button id="scoreBtn" disabled>Score and download CSV</button>
+        <div id="runStatus" class="muted"></div>
+    </div>
+
+    <script>
+        // --- Minimal CSV parser (assumes no embedded commas/quotes). Keep inputs simple. ---
+        function parseCSV(text) {
+            const lines = text.replace(/\r/g, '').split('\n').filter(x => x.length);
+            if (!lines.length) return { header: [], rows: [] };
+            const header = lines[0].split(',').map(s => s.trim());
+            const rows = lines.slice(1).map(line => line.split(',').map(s => s.trim()));
+            return { header, rows };
+        }
+
+        function toCSV(header, rows) {
+            const esc = v => v == null ? '' : String(v);
+            const head = header.join(',');
+            const body = rows.map(r => r.map(esc).join(',')).join('\n');
+            return head + '\n' + body + '\n';
+        }
+
+        const ITEM_ORDER = [
+            'return_to_life', 'mobility', 'toilet_help', 'dressing_help',
+            'dependent_support', 'depressed_anxious', 'general_health',
+            'increased_fatigue', 'new_pain'
+        ];
+
+        let lookupMap = null;  // key -> {frailty, se_frailty, theta_s1, se_s1, theta_s2, se_s2}
+        let lookupHeader = [];
+        let scoreCols = ['frailty', 'se_frailty', 'theta_s1', 'se_s1', 'theta_s2', 'se_s2'];
+
+        function makeKey(obj) {
+            const vals = ITEM_ORDER.map(k => {
+                const v = obj[k];
+                if (v === undefined || v === null || v === '') return 'NA';
+                return String(v);
+            });
+            return vals.join('|');
+        }
+
+        function buildLookupFromParsed(header, rows) {
+            // Validate required columns (3 factors + SEs)
+            const required = ['key', 'frailty', 'se_frailty', 'theta_s1', 'se_s1', 'theta_s2', 'se_s2'];
+            for (const req of required) {
+                if (header.indexOf(req) === -1) throw new Error('Lookup must include column: ' + req);
+            }
+            lookupHeader = header;
+            scoreCols = required.slice(1);
+            const idx = Object.fromEntries(header.map((h, i) => [h, i]));
+            lookupMap = new Map();
+            for (const r of rows) {
+                const key = r[idx['key']];
+                if (!key) continue;
+                const rec = Object.create(null);
+                header.forEach((h, i) => rec[h] = r[i]);
+                lookupMap.set(key, rec);
+            }
+        }
+
+        function loadLookupManual(file) {
+            const st = document.getElementById('lookupStatus');
+            const reader = new FileReader();
+            reader.onload = () => {
+                try {
+                    const { header, rows } = parseCSV(reader.result);
+                    if (!header.length) throw new Error('Empty CSV');
+                    buildLookupFromParsed(header, rows);
+                    st.innerHTML = `<span class="ok">Lookup loaded (${rows.length.toLocaleString()} rows)</span>`;
+                    maybeEnableScore();
+                } catch (e) {
+                    st.innerHTML = `<span class="err">${e.message}</span>`;
+                    lookupMap = null;
+                    document.getElementById('scoreBtn').disabled = true;
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        let respData = null; // {header, rows}
+
+        function loadResponses(file) {
+            const st = document.getElementById('respStatus');
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => {
+                try {
+                    const parsed = parseCSV(reader.result);
+                    if (!parsed.header.length) throw new Error('Empty CSV');
+                    const missing = ITEM_ORDER.filter(c => !parsed.header.includes(c));
+                    if (missing.length) {
+                        throw new Error('Responses missing columns: ' + missing.join(', '));
+                    }
+                    respData = parsed;
+                    st.innerHTML = `<span class="ok">Loaded ${parsed.rows.length.toLocaleString()} rows.</span>`;
+                    maybeEnableScore();
+                } catch (e) {
+                    st.innerHTML = `<span class="err">${e.message}</span>`;
+                    respData = null;
+                    document.getElementById('scoreBtn').disabled = true;
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function maybeEnableScore() {
+            document.getElementById('scoreBtn').disabled = !(lookupMap && respData);
+        }
+
+        function scoreNow() {
+            const runSt = document.getElementById('runStatus');
+            if (!(lookupMap && respData)) return;
+
+            const h = respData.header.slice();
+            const colIdx = Object.fromEntries(h.map((name, i) => [name, i]));
+
+            const outHeader = h.concat(scoreCols);
+            const outRows = [];
+
+            let nOK = 0, nMiss = 0;
+            for (const r of respData.rows) {
+                const obj = Object.create(null);
+                ITEM_ORDER.forEach(k => obj[k] = r[colIdx[k]]);
+                const key = makeKey(obj);
+                const rec = lookupMap.get(key);
+                if (rec) {
+                    const extra = scoreCols.map(c => rec[c] ?? '');
+                    outRows.push(r.concat(extra));
+                    nOK++;
+                } else {
+                    const blanks = scoreCols.map(() => '');
+                    outRows.push(r.concat(blanks));
+                    nMiss++;
+                }
+            }
+
+            const csv = toCSV(outHeader, outRows);
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'frailty_scores.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+
+            runSt.innerHTML = `<span class="ok">Done.</span> Matched ${nOK.toLocaleString()} rows; ${nMiss.toLocaleString()} had no exact key.`;
+        }
+
+        // Wire UI (manual lookup only)
+        document.getElementById('lookupFile').addEventListener('change', e => {
+            if (e.target.files && e.target.files[0]) loadLookupManual(e.target.files[0]);
+        });
+        document.getElementById('respFile').addEventListener('change', e => {
+            if (e.target.files && e.target.files[0]) loadResponses(e.target.files[0]);
+        });
+        document.getElementById('scoreBtn').addEventListener('click', scoreNow);
+    </script>
+</body>
+
+</html>

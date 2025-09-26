@@ -1,91 +1,89 @@
-## Frailty Score (Riksstroke PROMs) — Scoring Guide
+# Frailty Score (Riksstroke PROMs) — Scoring Guide
 
-This repo lets you compute **frailty scores** for new respondents using the bifactor IRT model from the corresponding article (published later). Scores can be computed from within R or from the command line with R installed.
+Compute **frailty scores** for new respondents using the bifactor IRT model from the article (to be published later). **R is not required**: Clone/Download this repository and use the offline HTML tool.
 
-### Installation
+## What’s in this repo
 
-- Clone/download this repository
-- A local R installation is required. If you don’t already have R installed, you can download it here:  
-👉 [https://cran.r-project.org/](https://cran.r-project.org/)
-- Optionally, you may also want RStudio Desktop if you plan to use R more in the future (a popular IDE for R):  
-👉 [https://posit.co/download/rstudio-desktop/](https://posit.co/download/rstudio-desktop/)
-- Install the `mirt` R package
-    ```r
-    install.packages("mirt")
-    ```
-
-### Input data
-See `templates/input_template.csv` for an example CSV in the expected format.
-
-Items, names, and coding (you must use these column names):
-
-| Column name      | Questionnaire item (abbrev. from article)             | Allowed codes                                                            |
-| ---------------- | ----------------------------------------------------- | ------------------------------------------------------------------------ |
-| `return_to_life` | Return to life/activities                             | 1–3 (1=Yes completely, 2=Yes not quite, 3=No)                            |
-| `mobility`       | Mobility                                              | 1–3 (1=indoor+outdoor alone, 2=indoor alone only, 3=help indoor+outdoor) |
-| `toilet_help`    | Toilet help                                           | 1–2 (1=no help, 2=needs help)                                            |
-| `dressing_help`  | Dressing help                                         | 1–2 (1=no help, 2=needs help)                                            |
-| `dependent_sup`  | Dependent on support/help                             | 1–3 (1=No, 2=Yes partly, 3=Yes completely)                               |
-| `depressed_anx`  | Down/depressed/anxious since stroke                   | 1–2 (1=No, 2=Yes)                                                        |
-| `general_health` | General health status                                 | 1–4 (1=Very good, 2=Fairly good, 3=Fairly poor, 4=Very poor)             |
-| `fatigue`        | Increased tiredness affecting activities since stroke | 1–2 (1=No, 2=Yes)                                                        |
-| `new_pain`       | New types of pain since stroke                        | 1–2 (1=No, 2=Yes)                                                        |
-
-* **Missing/“Don’t know”:** encode as `NA` (leave the cell empty or write `NA` in CSV).
-* **Ranges must be respected** (e.g., `general_health` must be 1, 2, 3 or 4). The scorer will error if any value is out of range.
-
-### Scale and interpretation
-
-* Scores are on the **reference metric** from the 2021–2022 Riksstroke cohort: mean 0, SD 1.
-* **Higher θ̂ = more frailty** (worse recovery/well-being).
+* `frailty_scoring_local.html` — offline scoring tool (runs offline in your browser).
+* `lookup.csv` — precomputed lookup table (key → factor scores + SEs).
+* `input_template.csv` — example input file with the required columns/coding.
+* `frailty_bifactor_model.rds` — (optional) the fitted `mirt` model for advanced R users.
+* `build_lookup_table.R` — (maintainer) script to regenerate `lookup.csv` from the model.
 
 ---
 
-## Command-line scoring
+## Quick start (HTML — no R required)
 
-Run from the terminal (bash) from the cloned repo directory:
-```bash
-Rscript R/score_frailty_cli.R templates/input_template.csv out.csv
-```
-All factors from the terminal:
-```bash
-Rscript R/score_frailty_cli.R templates/input_template.csv out.csv --all
-```
+1. Open `frailty_scoring_local.html` in a browser (Chrome/Edge/Firefox/Safari).
+2. Click **Load the lookup table** and choose `lookup.csv`.
+3. Click **Load your responses** and upload your CSV (see format below).
+4. Click **Score and download CSV** → you’ll get `frailty_scores.csv` with scores appended. The `frailty` and `se_frailty` columns are contain the frailty scores and their respective standard errors. The subsequent columns contain the scores and SEs for the two specific factors (see article). 
 
-This reads `input_template.csv` and writes scores to `out.csv`.
+### Output columns appended
 
----
+* `theta_g`, `se_g` — general frailty factor + SE
+* `theta_s1`, `se_s1` — specific factor 1 (Physical Functioning) + SE
+* `theta_s2`, `se_s2` — specific factor 2 (Well-being/Mental Health) + SE
 
-## R scoring
-Open R or RStudio and set the working directory to the cloned repo (e.g., by opening the R project file `frailty-irt-model.Rproj` or by using the `setwd()` R function), then run:
-
-```r
-# Load the scoring function
-source("R/score_frailty.R")
-
-# Example: read a CSV with the 9 columns above (integers + NA)
-df <- read.csv("templates/input_template.csv")
-
-# Score using the model
-res <- score_frailty(df)
-head(res)
-```
-
-To return **all factors** (general + specifics) with SEs:
-
-```r
-res_all <- score_frailty(df, return_all_factors = TRUE)
-head(res_all)
-```
+> Rows that don’t match any pattern in the lookup will have empty score cells. See Troubleshooting.
 
 ---
 
-## mirt package users
+## Input data format
 
-Users familiar with `mirt` can use the `mirt` package directly. The model is stored in `model/frailty_bifactor_model.rds` and can be loaded with:
+Use the 9 columns **exactly** as named below (order doesn’t matter).
+See `templates/input_template.csv` for an example.
+
+| Column name         | Questionnaire item (abbrev. from article)             | Allowed codes                                                            |
+| ------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| `return_to_life`    | Return to life/activities                             | 1–3 (1=Yes completely, 2=Yes not quite as before, 3=No)                            |
+| `mobility`          | Mobility                                              | 1–3 (1=indoor+outdoor alone, 2=indoor alone only, 3=help indoor+outdoor) |
+| `toilet_help`       | Toilet help                                           | 1–2 (1=no help, 2=needs help)                                            |
+| `dressing_help`     | Dressing help                                         | 1–2 (1=no help, 2=needs help)                                            |
+| `dependent_support` | Dependent on support                             | 1–3 (1=No, 2=Yes partly, 3=Yes completely)                               |
+| `depressed_anxious` | Down/depressed/anxious                   | 1–2 (1=No, 2=Yes)                                                        |
+| `general_health`    | General health status                                 | 1–4 (1=Very good, 2=Fairly good, 3=Fairly poor, 4=Very poor)             |
+| `increased_fatigue` | Increased fatigue | 1–2 (1=No, 2=Yes)                                                        |
+| `new_pain`          | New pain                        | 1–2 (1=No, 2=Yes)                                                        |
+
+
+**Missing / “Don’t know”**: leave the cell empty or write `NA` (both are treated as missing).
+**Ranges must be respected**: values outside the allowed codes won’t match the lookup.
+
+---
+
+## Scale and interpretation
+
+* Scores are on the **reference metric** (2021–2022 Riksstroke cohort): mean 0, SD 1.
+* **Higher score $(\hat{\theta})$ = higher frailty** (worse recovery/well-being).
+
+---
+
+## Troubleshooting
+
+* **Blank scores in output**
+  Most common causes:
+
+  * A column name is misspelled (must match the table above exactly).
+  * A value is out of range (e.g., `general_health=5`).
+  * Extra whitespace or non-numeric strings in numeric columns.
+* **Large files**
+  The lookup join is instant for typical CSV sizes. If you’re scoring millions of rows, consider splitting the input CSV into chunks.
+
+---
+
+## R / `mirt` users (optional)
+
+You don’t need R to score with the HTML tool, but the model is made available for R users:
 
 ```r
+# Minimal example: load model and score new data with mirt
 library(mirt)
-model <- readRDS("model/frailty_bifactor_model.rds")
+# Load the fitted bifactor model
+mod <- readRDS("frailty_bifactor_model.rds")  # 3 factors: g, s1, s2
+# Read your data frame with the 9 columns listed above (integers + NA)
+df <- read.csv("input_template.csv")
+# EAP scores for all three factors
+scores <- fscores(mod, response.pattern = df)
+head(scores)
 ```
- 
