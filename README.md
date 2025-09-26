@@ -1,6 +1,6 @@
 # Frailty Score (Riksstroke PROMs) — Scoring Guide
 
-Compute **frailty scores** for new respondents using the bifactor IRT model from the article (to be published later). **R is not required**: Clone/Download this repository and use the offline HTML tool.
+Compute **frailty scores** for new respondents using the bifactor IRT model from the article (to be published later). **R is not required**: Clone/Download this repository and use the offline HTML tool (the data is never uploaded anywhere online).
 
 ## What’s in this repo
 
@@ -21,7 +21,7 @@ Compute **frailty scores** for new respondents using the bifactor IRT model from
 
 ### Output columns appended
 
-* `theta_g`, `se_g` — general frailty factor + SE
+* `frailty`, `se_frailty` — general frailty factor + SE
 * `theta_s1`, `se_s1` — specific factor 1 (Physical Functioning) + SE
 * `theta_s2`, `se_s2` — specific factor 2 (Well-being/Mental Health) + SE
 
