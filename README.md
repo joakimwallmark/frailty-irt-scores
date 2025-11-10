@@ -4,7 +4,7 @@ Compute **frailty scores** for new respondents using the bifactor IRT model from
 
 ## What’s in this repo
 
-* `frailty_scoring_local.html` — offline scoring tool (runs offline in your browser).
+* `score_frailty.html` — offline scoring tool (runs offline in your browser).
 * `lookup.csv` — precomputed lookup table (key → factor scores + SEs).
 * `input_template.csv` — example input file with the required columns/coding.
 * `frailty_bifactor_model.rds` — (optional) the fitted `mirt` model for advanced R users.
@@ -14,10 +14,11 @@ Compute **frailty scores** for new respondents using the bifactor IRT model from
 
 ## Quick start (HTML — no R required)
 
-1. Open `frailty_scoring_local.html` in a browser (Chrome/Edge/Firefox/Safari).
-2. Click **Load the lookup table** and choose `lookup.csv`.
-3. Click **Load your responses** and upload your CSV (see format below).
-4. Click **Score and download CSV** → you’ll get `frailty_scores.csv` with scores appended. The `frailty` and `se_frailty` columns are contain the frailty scores and their respective standard errors. The subsequent columns contain the scores and SEs for the two specific factors (see article). 
+1. Clone/Download this repository to you own computer.
+2. Open `score_frailty.html` in a browser (Chrome/Edge/Firefox/Safari).
+3. Click **Load the lookup table** and choose `lookup.csv`.
+4. Click **Load your responses** and upload your CSV (see format below).
+5. Click **Score and download CSV** → you’ll get `frailty_scores.csv` with scores appended. The `frailty` and `se_frailty` columns are contain the frailty scores and their respective standard errors. The subsequent columns contain the scores and SEs for the two specific factors (see article). 
 
 ### Output columns appended
 
